@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SanaConsultIA — Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">S</div>
+        <div>
+          <div class="brand-name">SanaConsultIA</div>
+          <div class="brand-sub">Panel de control</div>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span class="status-dot connecting" id="status-dot"></span>
+        <span id="status-text">Conectando…</span>
+      </div>
+    </div>
+
+    <!-- QR Code -->
+    <div class="qr-section hidden" id="qr-section">
+      <p class="qr-title">Escanea con WhatsApp</p>
+      <p class="qr-sub">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+      <img id="qr-image" src="" alt="QR Code">
+    </div>
+
+    <!-- Lista de conversaciones -->
+    <div class="conv-list" id="conv-list">
+      <p class="empty-state">Cargando conversaciones…</p>
+    </div>
+
+  </aside>
+
+  <!-- ── PANEL PRINCIPAL ─────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Sin conversación seleccionada -->
+    <div class="no-chat" id="no-chat">
+      <div class="no-chat-icon">💬</div>
+      <h2>SanaConsultIA Bot</h2>
+      <p>Selecciona una conversación para ver los mensajes</p>
+    </div>
+
+    <!-- Vista de chat -->
+    <div class="chat-view hidden" id="chat-view">
+
+      <div class="chat-header">
+        <div class="chat-contact">
+          <div class="chat-avatar" id="chat-avatar">?</div>
+          <div>
+            <div class="chat-name" id="chat-name">Contacto</div>
+            <div class="chat-phone" id="chat-phone">—</div>
+          </div>
+        </div>
+
+        <div class="mode-control">
+          <span class="mode-label" id="mode-label">🤖 Modo IA activo</span>
+          <label class="toggle-wrap" title="Cambiar a modo humano">
+            <input type="checkbox" id="mode-toggle" class="toggle-input">
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+          <span class="toggle-hint">Humano</span>
+        </div>
+      </div>
+
+      <div class="messages-area" id="messages-area"></div>
+
+      <!-- Formulario de envío (solo en modo humano) -->
+      <div class="send-form hidden" id="send-form">
+        <textarea
+          id="message-input"
+          placeholder="Escribe un mensaje como agente humano…"
+          rows="1"
+        ></textarea>
+        <button class="send-btn" id="send-btn" title="Enviar (Enter)">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
