@@ -8,13 +8,14 @@ import P from 'pino'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import * as db from './database.js'
-import { getAIResponse } from './ai.js'
+import { getAIResponse, detectIntent } from './ai.js'
+import { createEvent } from './calendar.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const logger = P({ level: 'silent' })
 
 let sock = null
-let state = 'disconnected'  // 'disconnected' | 'qr' | 'open'
+let state = 'disconnected'
 let latestQR = null
 
 export function getConnectionState() {
@@ -65,10 +66,8 @@ export async function initWhatsApp(io) {
     if (connection === 'close') {
       state = 'disconnected'
       io.emit('whatsapp_disconnected')
-
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const loggedOut = statusCode === DisconnectReason.loggedOut
-
       console.log(`Conexión cerrada (${statusCode}), reconectando: ${!loggedOut}`)
       if (!loggedOut) setTimeout(() => initWhatsApp(io), 4_000)
     }
@@ -79,13 +78,12 @@ export async function initWhatsApp(io) {
 
     for (const msg of messages) {
       if (!msg.message || msg.key.fromMe) continue
-      if (msg.key.remoteJid?.endsWith('@g.us')) continue  // ignorar grupos
+      if (msg.key.remoteJid?.endsWith('@g.us')) continue
 
       const phone = msg.key.remoteJid.replace('@s.whatsapp.net', '')
       const name = msg.pushName || phone
       const content = extractText(msg)
 
-      // historial previo para contexto de IA (antes de guardar el mensaje actual)
       const history = db.getMessages(phone, 20)
 
       db.saveMessage(phone, content, 'incoming', name)
@@ -98,13 +96,40 @@ export async function initWhatsApp(io) {
       if (mode !== 'ai') continue
 
       try {
-        const reply = await getAIResponse(content, history)
-        await sock.sendMessage(msg.key.remoteJid, { text: reply })
+        const intent = await detectIntent(content)
+        console.log('INTENT:', JSON.stringify(intent))
 
-        db.saveMessage(phone, reply, 'outgoing')
-        const ts = new Date().toISOString()
-        io.emit('new_message', { phone, content: reply, direction: 'outgoing', timestamp: ts })
-        io.emit('conversation_updated', { phone, name, last_message: reply, last_message_at: ts })
+        if (intent.intent === 'agendar') {
+          const missing = []
+          if (!intent.fecha) missing.push('la fecha')
+          if (!intent.hora) missing.push('la hora')
+          if (!intent.nombre) missing.push('tu nombre')
+          if (!intent.email) missing.push('tu email')
+
+          if (missing.length > 0) {
+            const reply = await getAIResponse(
+              `El usuario quiere agendar pero faltan estos datos: ${missing.join(', ')}. Pídelos de forma natural y amable.`,
+              history
+            )
+            await sock.sendMessage(msg.key.remoteJid, { text: reply })
+          } else {
+            await createEvent(
+              `Reunión con ${intent.nombre}`,
+              intent.fecha,
+              intent.hora,
+              intent.email
+            )
+            const reply = await getAIResponse(
+              `Confirma al usuario que su cita ha sido agendada para el ${intent.fecha} a las ${intent.hora}. Sé breve y amable.`,
+              history
+            )
+            await sock.sendMessage(msg.key.remoteJid, { text: reply })
+          }
+        } else {
+          const reply = await getAIResponse(content, history)
+          await sock.sendMessage(msg.key.remoteJid, { text: reply })
+        }
+
       } catch (err) {
         console.error('Error generando respuesta IA:', err.message)
       }
@@ -134,7 +159,7 @@ function extractText(msg) {
   if (m.stickerMessage)                  return '[Sticker]'
   if (m.locationMessage)                 return '[Ubicación 📍]'
   if (m.contactMessage)                  return '[Contacto 👤]'
-  if (m.reactionMessage)                 return null  // ignorar reacciones
+  if (m.reactionMessage)                 return null
 
   return '[Mensaje no soportado]'
 }
