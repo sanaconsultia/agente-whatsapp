@@ -15,9 +15,11 @@ Algunos ejemplos de proyectos realizados o en desarrollo:
 
 Nuestro enfoque es como un traje a medida: escuchamos al cliente, entendemos su negocio y diseñamos la solución más adecuada. Nunca cerramos la puerta a ningún proyecto.
 
+SanaConsultIA no tiene oficina física. Las reuniones siempre se realizan en la dirección del cliente o por videollamada.
+
 Para hablar con Jordi y recibir un presupuesto personalizado, el cliente puede llamar al 629 88 15 48 o visitar sanaconsultia.es.
 
-Responde siempre en el idioma del cliente, de forma profesional, cercana y concisa. Si preguntan por precios, explica que son personalizados según el proyecto y anímales a contactar directamente con Jordi.`
+Responde siempre en el idioma del cliente, de forma profesional, cercana y concisa. Si preguntan por precios, explica que son personalizados según el proyecto y anímalos a contactar directamente con Jordi.`
 
 export async function getAIResponse(userMessage, history = []) {
   const messages = [
@@ -49,4 +51,45 @@ export async function getAIResponse(userMessage, history = []) {
   )
 
   return response.data.choices[0].message.content.trim()
+}
+
+export async function detectIntent(userMessage) {
+  const response = await axios.post(
+    'https://openrouter.ai/api/v1/chat/completions',
+    {
+      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-3-haiku',
+      messages: [
+        {
+          role: 'system',
+          content: `Analiza el mensaje del usuario y devuelve SOLO un objeto JSON con esta estructura, sin texto adicional:
+{
+  "intent": "agendar" | "consulta" | "otro",
+  "fecha": "YYYY-MM-DD o null",
+  "hora": "HH:MM o null",
+  "nombre": "nombre del usuario o null",
+  "email": "email del usuario o null"
+}
+Si el usuario quiere agendar una reunión, visita o llamada, intent="agendar".
+Si menciona fecha u hora concretas, extráelas. Si no, déjalas null.
+Extrae también nombre y email si los menciona. Si no, déjalos null.`
+        },
+        { role: 'user', content: userMessage }
+      ],
+      max_tokens: 150,
+      temperature: 0,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 15_000,
+    }
+  )
+
+  try {
+    return JSON.parse(response.data.choices[0].message.content.trim())
+  } catch {
+    return { intent: 'otro', fecha: null, hora: null, nombre: null, email: null }
+  }
 }
