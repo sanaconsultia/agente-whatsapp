@@ -167,4 +167,16 @@ function extractText(msg) {
   if (m.extendedTextMessage?.text)       return m.extendedTextMessage.text
   if (m.imageMessage?.caption)           return m.imageMessage.caption
   if (m.videoMessage?.caption)           return m.videoMessage.caption
-  if (m.documentMessage?.caption)
+  if (m.documentMessage?.caption)return m.documentMessage.caption
+  if (m.audioMessage)                    return '[Mensaje de voz 🎤]'
+  if (m.imageMessage)                    return '[Imagen 🖼️]'
+  if (m.videoMessage)                    return '[Video 📹]'
+  if (m.documentMessage)                 return `[Documento 📄: ${m.documentMessage.fileName || ''}]`.trim()
+  if (m.stickerMessage)                  return '[Sticker]'
+  if (m.locationMessage)                 return '[Ubicación 📍]'
+  if (m.contactMessage)                  return '[Contacto 👤]'
+  if (m.reactionMessage)                 return null
+return null
+}
+  return null
+}
