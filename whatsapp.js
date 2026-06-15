@@ -178,5 +178,3 @@ function extractText(msg) {
   if (m.reactionMessage)                 return null
 return null
 }
-  return null
-}
