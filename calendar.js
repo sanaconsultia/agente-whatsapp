@@ -43,7 +43,7 @@ export async function getAvailableSlots(date) {
 }
 
 export async function createEvent(summary, date, hour, attendeeEmail) {
-  const start = new Date(`${date}T${hour}:00+02:00`)
+  const start = new Date(`${date}T${hour}:00`)
   const end = new Date(start.getTime() + 60 * 60 * 1000)
 
   await calendar.events.insert({
