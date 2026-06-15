@@ -42,6 +42,8 @@ export async function initWhatsApp(io) {
     logger,
     browser: ['SanaConsultIA', 'Chrome', '1.0.0'],
     generateHighQualityLinkPreview: false,
+    syncFullHistory: false,
+    emitOwnEvents: true,
   })
 
   sock.ev.on('creds.update', saveCreds)
@@ -79,25 +81,26 @@ export async function initWhatsApp(io) {
     for (const msg of messages) {
       if (!msg.message) continue
 
-      const phone = msg.key.remoteJid.replace('@s.whatsapp.net', '')
-      const name = msg.pushName || phone
+      const jid = msg.key.remoteJid
+      if (jid?.endsWith('@g.us')) continue
+
+      const phone = jid.replace('@s.whatsapp.net', '')
       const content = extractText(msg)
-
       if (!content) continue
-      if (msg.key.remoteJid?.endsWith('@g.us')) continue
 
-      // Si el mensaje es tuyo (Jordi)
+      // Mensajes enviados por Jordi desde el número del bot
       if (msg.key.fromMe) {
-        if (content.trim() === '#bot') {
-          db.setMode(phone, 'ai')
-          console.log(`Bot reactivado para ${phone}`)
-        } else {
+        if (content.trim() === '#stop') {
           db.setMode(phone, 'human')
           console.log(`Modo manual activado para ${phone}`)
+        } else if (content.trim() === '#bot') {
+          db.setMode(phone, 'ai')
+          console.log(`Bot reactivado para ${phone}`)
         }
         continue
       }
 
+      const name = msg.pushName || phone
       const history = db.getMessages(phone, 20)
       db.saveMessage(phone, content, 'incoming', name)
 
@@ -124,7 +127,7 @@ export async function initWhatsApp(io) {
               `El usuario quiere agendar pero faltan estos datos: ${missing.join(', ')}. Pídelos de forma natural y amable.`,
               history
             )
-            await sock.sendMessage(msg.key.remoteJid, { text: reply })
+            await sock.sendMessage(jid, { text: reply })
           } else {
             await createEvent(
               `Reunión con ${intent.nombre}`,
@@ -136,11 +139,11 @@ export async function initWhatsApp(io) {
               `Confirma al usuario que su cita ha sido agendada para el ${intent.fecha} a las ${intent.hora}. Sé breve y amable.`,
               history
             )
-            await sock.sendMessage(msg.key.remoteJid, { text: reply })
+            await sock.sendMessage(jid, { text: reply })
           }
         } else {
           const reply = await getAIResponse(content, history)
-          await sock.sendMessage(msg.key.remoteJid, { text: reply })
+          await sock.sendMessage(jid, { text: reply })
         }
 
       } catch (err) {
@@ -164,15 +167,4 @@ function extractText(msg) {
   if (m.extendedTextMessage?.text)       return m.extendedTextMessage.text
   if (m.imageMessage?.caption)           return m.imageMessage.caption
   if (m.videoMessage?.caption)           return m.videoMessage.caption
-  if (m.documentMessage?.caption)        return m.documentMessage.caption
-  if (m.audioMessage)                    return '[Mensaje de voz 🎤]'
-  if (m.imageMessage)                    return '[Imagen 🖼️]'
-  if (m.videoMessage)                    return '[Video 📹]'
-  if (m.documentMessage)                 return `[Documento 📄: ${m.documentMessage.fileName || ''}]`.trim()
-  if (m.stickerMessage)                  return '[Sticker]'
-  if (m.locationMessage)                 return '[Ubicación 📍]'
-  if (m.contactMessage)                  return '[Contacto 👤]'
-  if (m.reactionMessage)                 return null
-
-  return null
-}
+  if (m.documentMessage?.caption)
