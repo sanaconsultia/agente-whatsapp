@@ -54,6 +54,8 @@ export async function getAIResponse(userMessage, history = []) {
 }
 
 export async function detectIntent(userMessage) {
+  const today = new Date().toISOString().split('T')[0]
+
   const response = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
@@ -69,6 +71,7 @@ export async function detectIntent(userMessage) {
   "nombre": "nombre del usuario o null",
   "email": "email del usuario o null"
 }
+La fecha de hoy es ${today}. Usa siempre el año actual al interpretar fechas. Si el usuario no especifica año, usa el año actual.
 Si el usuario quiere agendar una reunión, visita o llamada, intent="agendar".
 Si menciona fecha u hora concretas, extráelas. Si no, déjalas null.
 Extrae también nombre y email si los menciona. Si no, déjalos null.`
