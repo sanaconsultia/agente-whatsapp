@@ -77,15 +77,28 @@ export async function initWhatsApp(io) {
     if (type !== 'notify') return
 
     for (const msg of messages) {
-      if (!msg.message || msg.key.fromMe) continue
-      if (msg.key.remoteJid?.endsWith('@g.us')) continue
+      if (!msg.message) continue
 
       const phone = msg.key.remoteJid.replace('@s.whatsapp.net', '')
       const name = msg.pushName || phone
       const content = extractText(msg)
 
-      const history = db.getMessages(phone, 20)
+      if (!content) continue
+      if (msg.key.remoteJid?.endsWith('@g.us')) continue
 
+      // Si el mensaje es tuyo (Jordi)
+      if (msg.key.fromMe) {
+        if (content.trim() === '#bot') {
+          db.setMode(phone, 'ai')
+          console.log(`Bot reactivado para ${phone}`)
+        } else {
+          db.setMode(phone, 'human')
+          console.log(`Modo manual activado para ${phone}`)
+        }
+        continue
+      }
+
+      const history = db.getMessages(phone, 20)
       db.saveMessage(phone, content, 'incoming', name)
 
       const now = new Date().toISOString()
@@ -145,7 +158,7 @@ export async function sendMessage(phone, text) {
 
 function extractText(msg) {
   const m = msg.message
-  if (!m) return '[Mensaje vacío]'
+  if (!m) return null
 
   if (m.conversation)                    return m.conversation
   if (m.extendedTextMessage?.text)       return m.extendedTextMessage.text
@@ -161,5 +174,5 @@ function extractText(msg) {
   if (m.contactMessage)                  return '[Contacto 👤]'
   if (m.reactionMessage)                 return null
 
-  return '[Mensaje no soportado]'
+  return null
 }
