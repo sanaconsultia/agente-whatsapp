@@ -13,10 +13,8 @@ oauth2Client.setCredentials({
 const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
 
 export async function getAvailableSlots(date) {
-  const startOfDay = new Date(date)
-  startOfDay.setHours(9, 0, 0, 0)
-  const endOfDay = new Date(date)
-  endOfDay.setHours(18, 0, 0, 0)
+  const startOfDay = new Date(`${date}T09:00:00+02:00`)
+  const endOfDay = new Date(`${date}T18:00:00+02:00`)
 
   const res = await calendar.freebusy.query({
     requestBody: {
@@ -45,7 +43,7 @@ export async function getAvailableSlots(date) {
 }
 
 export async function createEvent(summary, date, hour, attendeeEmail) {
-  const start = new Date(`${date}T${hour}:00`)
+  const start = new Date(`${date}T${hour}:00+02:00`)
   const end = new Date(start.getTime() + 60 * 60 * 1000)
 
   await calendar.events.insert({
