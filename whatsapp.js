@@ -146,9 +146,10 @@ export async function initWhatsApp(io) {
           await sock.sendMessage(jid, { text: reply })
         }
 
-      } catch (err) {
-        console.error('Error generando respuesta IA:', err.message)
-      }
+     } catch (err) {
+  console.error('Error generando respuesta IA:', err.message, err.response?.data)
+  await sock.sendMessage(jid, { text: 'Lo siento, estoy teniendo problemas técnicos. Inténtalo de nuevo en un momento.' })
+}
     }
   })
 }
