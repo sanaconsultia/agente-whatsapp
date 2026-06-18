@@ -50,7 +50,12 @@ export async function getAIResponse(userMessage, history = []) {
     }
   )
 
-  return response.data.choices[0].message.content.trim()
+const content = response.data?.choices?.[0]?.message?.content
+if (!content) {
+  console.error('Error generando respuesta IA:', response.data)
+  throw new Error('Respuesta vacía de OpenRouter')
+}
+return content.trim()
 }
 
 export async function detectIntent(userMessage) {
