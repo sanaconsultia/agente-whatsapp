@@ -141,7 +141,8 @@ export async function initWhatsApp(io) {
             )
             await sock.sendMessage(jid, { text: reply })
           }
-        }console.log('JID:', jid, 'Content:', content) else {
+        console.log('JID:', jid, 'Content:', content)
+} else {
           const reply = await getAIResponse(content, history)
           await sock.sendMessage(jid, { text: reply })
         }
