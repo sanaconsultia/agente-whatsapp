@@ -114,7 +114,7 @@ export async function initWhatsApp(io) {
       try {
         const intent = await detectIntent(content)
         console.log('INTENT:', JSON.stringify(intent))
-
+        console.log('Procesando intent:', intent.intent)
         if (intent.intent === 'agendar') {
           const missing = []
           if (!intent.fecha) missing.push('la fecha')
