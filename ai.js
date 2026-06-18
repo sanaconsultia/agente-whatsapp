@@ -96,7 +96,12 @@ Extrae también nombre y email si los menciona. Si no, déjalos null.`
   )
 
   try {
-    return JSON.parse(response.data.choices[0].message.content.trim())
+  const raw = response.data?.choices?.[0]?.message?.content
+if (!raw) {
+  console.error('Error en detectIntent:', response.data)
+  return { intent: 'otro', fecha: null, hora: null, nombre: null, email: null }
+}
+return JSON.parse(raw.trim())
   } catch {
     return { intent: 'otro', fecha: null, hora: null, nombre: null, email: null }
   }
