@@ -197,7 +197,7 @@ export async function initWhatsApp(io) {
       if (mode !== 'ai') continue
 
       try {
-        const intent = await detectIntent(content)
+        const intent = await detectIntent(content, history)
         console.log('INTENT:', JSON.stringify(intent))
 
         const sendReply = async (text) => {

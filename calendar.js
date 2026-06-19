@@ -50,6 +50,7 @@ start.setUTCHours(h - 2, m, 0, 0)
 
   await calendar.events.insert({
     calendarId: process.env.GOOGLE_CALENDAR_ID,
+    sendUpdates: 'all',
     requestBody: {
       summary,
       start: { dateTime: start.toISOString() },
