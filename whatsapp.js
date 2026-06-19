@@ -29,8 +29,12 @@ async function resolveLidToJid(rawJid) {
       .withLIDProtocol()
       .withUser(new USyncUser().withLid(rawJid))
     const result = await sock.executeUSyncQuery(query)
-    const resolved = result?.list?.[0]?.id
-    if (resolved && !resolved.endsWith('@lid')) {
+    console.log('[LID] USync result:', JSON.stringify(result?.list?.[0]))
+    const entry = result?.list?.[0]
+    const resolved = (entry?.id && !entry.id.endsWith('@lid')) ? entry.id
+                   : (entry?.lid && !entry.lid.endsWith('@lid')) ? entry.lid
+                   : null
+    if (resolved) {
       console.log('[LID] Resuelto via USync:', rawJid, '→', resolved)
       lidToJid.set(rawJid, resolved)
       return resolved
