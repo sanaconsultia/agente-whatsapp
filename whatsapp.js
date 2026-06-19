@@ -114,7 +114,16 @@ export async function initWhatsApp(io) {
       try {
         const intent = await detectIntent(content)
         console.log('INTENT:', JSON.stringify(intent))
-        console.log('Procesando intent:', intent.intent)
+
+        const sendReply = async (text) => {
+          if (!text) { console.error('[AI] Respuesta vacía — no se envía nada'); return }
+          await sock.sendMessage(jid, { text })
+          db.saveMessage(phone, text, 'outgoing')
+          const ts = new Date().toISOString()
+          io.emit('new_message', { phone, name, content: text, direction: 'outgoing', timestamp: ts })
+          io.emit('conversation_updated', { phone, name, last_message: text, last_message_at: ts })
+        }
+
         if (intent.intent === 'agendar') {
           const missing = []
           if (!intent.fecha) missing.push('la fecha')
@@ -127,7 +136,7 @@ export async function initWhatsApp(io) {
               `El usuario quiere agendar pero faltan estos datos: ${missing.join(', ')}. Pídelos de forma natural y amable.`,
               history
             )
-            await sock.sendMessage(jid, { text: reply })
+            await sendReply(reply)
           } else {
             await createEvent(
               `Reunión con ${intent.nombre}`,
@@ -139,18 +148,20 @@ export async function initWhatsApp(io) {
               `Confirma al usuario que su cita ha sido agendada para el ${intent.fecha} a las ${intent.hora}. Sé breve y amable.`,
               history
             )
-            await sock.sendMessage(jid, { text: reply })
+            await sendReply(reply)
           }
-        console.log('JID:', jid, 'Content:', content)
-} else {
+        } else {
+          console.log(`[AI] Generando respuesta para ${phone}:`, content.slice(0, 60))
           const reply = await getAIResponse(content, history)
-          await sock.sendMessage(jid, { text: reply })
+          console.log(`[AI] Respuesta obtenida (${reply.length} chars):`, reply.slice(0, 80))
+          await sendReply(reply)
         }
 
-     } catch (err) {
-  console.error('Error generando respuesta IA:', err.message, err.response?.data)
-  await sock.sendMessage(jid, { text: 'Lo siento, estoy teniendo problemas técnicos. Inténtalo de nuevo en un momento.' })
-}
+      } catch (err) {
+        const detail = err.response?.data ?? err.message
+        console.error('Error generando respuesta IA:', detail)
+        await sock.sendMessage(jid, { text: 'Lo siento, estoy teniendo problemas técnicos. Inténtalo de nuevo en un momento.' })
+      }
     }
   })
 }

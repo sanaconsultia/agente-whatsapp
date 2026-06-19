@@ -50,12 +50,12 @@ export async function getAIResponse(userMessage, history = []) {
     }
   )
 
-const content = response.data?.choices?.[0]?.message?.content
-if (!content) {
-  console.error('Error generando respuesta IA:', response.data)
-  throw new Error('Respuesta vacía de OpenRouter')
-}
-return content.trim()
+  const content = response.data?.choices?.[0]?.message?.content
+  if (!content) {
+    console.error('OpenRouter respuesta vacía:', response.data)
+    throw new Error(`OpenRouter devolvió contenido vacío (model: ${response.data?.model ?? 'unknown'})`)
+  }
+  return content.trim()
 }
 
 export async function detectIntent(userMessage) {
@@ -96,12 +96,12 @@ Extrae también nombre y email si los menciona. Si no, déjalos null.`
   )
 
   try {
-  const raw = response.data?.choices?.[0]?.message?.content
-if (!raw) {
-  console.error('Error en detectIntent:', response.data)
-  return { intent: 'otro', fecha: null, hora: null, nombre: null, email: null }
-}
-return JSON.parse(raw.trim())
+    const raw = response.data?.choices?.[0]?.message?.content
+    if (!raw) {
+      console.error('Error en detectIntent:', response.data)
+      return { intent: 'otro', fecha: null, hora: null, nombre: null, email: null }
+    }
+    return JSON.parse(raw.trim())
   } catch {
     return { intent: 'otro', fecha: null, hora: null, nombre: null, email: null }
   }
