@@ -9,6 +9,7 @@ import QRCode from 'qrcode'
 import P from 'pino'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { access, symlink, lstat } from 'fs/promises'
 import * as db from './database.js'
 import { getAIResponse, detectIntent } from './ai.js'
 import { createEvent } from './calendar.js'
@@ -18,6 +19,30 @@ const logger = P({ level: 'silent' })
 
 // Persists across reconnections — accumulates LID→@s.whatsapp.net mappings
 const lidToJid = new Map()
+
+// Baileys bug workaround: for @lid JIDs, sessions are stored as
+// session-{user}.0.json but looked up as session-{user}.json (no device suffix).
+// We create a symlink so the lookup finds the existing device-0 session.
+async function ensureLidSessionAlias(rawJid) {
+  const user = rawJid.split('@')[0]
+  const authDir = join(__dirname, 'auth_info')
+  const linkPath = join(authDir, `session-${user}.json`)
+  const targetFile = `session-${user}.0.json`
+  const targetPath = join(authDir, targetFile)
+
+  try {
+    const stat = await lstat(linkPath)
+    if (stat.isSymbolicLink() || stat.isFile()) return  // already exists
+  } catch { /* doesn't exist */ }
+
+  try {
+    await access(targetPath)  // only create if device-0 session exists
+    await symlink(targetFile, linkPath)
+    console.log(`[LID] Session alias creado: session-${user}.json → ${targetFile}`)
+  } catch (e) {
+    console.log(`[LID] No se pudo crear alias de sesión:`, e.message)
+  }
+}
 
 async function resolveLidToJid(rawJid) {
   if (lidToJid.has(rawJid)) return lidToJid.get(rawJid)
@@ -29,7 +54,6 @@ async function resolveLidToJid(rawJid) {
       .withLIDProtocol()
       .withUser(new USyncUser().withLid(rawJid))
     const result = await sock.executeUSyncQuery(query)
-    console.log('[LID] USync full result:', JSON.stringify(result))
     const entry = result?.list?.[0]
     const resolved = (entry?.id && !entry.id.endsWith('@lid')) ? entry.id
                    : (entry?.lid && !entry.lid.endsWith('@lid')) ? entry.lid
@@ -136,8 +160,12 @@ export async function initWhatsApp(io) {
       // Resolve @lid to @s.whatsapp.net via active USync server query.
       // LIDs are opaque — passive contacts.upsert only covers address-book
       // contacts, so we resolve on demand and cache the result.
+      // Also create a session alias so Baileys can find the Signal session for
+      // the reply (Baileys stores @lid sessions as user.0.json but looks them
+      // up as user.json when device ID is undefined in relayMessage).
       let jid = rawJid
       if (rawJid?.endsWith('@lid')) {
+        await ensureLidSessionAlias(rawJid)
         jid = await resolveLidToJid(rawJid)
       }
 
@@ -174,12 +202,7 @@ export async function initWhatsApp(io) {
 
         const sendReply = async (text) => {
           if (!text) { console.error('[AI] Respuesta vacía — no se envía nada'); return }
-          console.log('[SEND] Intentando enviar a:', jid)
-          await Promise.race([
-            sock.sendMessage(jid, { text }, { quoted: msg }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('sendMessage timeout 8s')), 8000)),
-          ])
-          console.log('[SEND] Completado:', jid)
+          await sock.sendMessage(jid, { text })
           db.saveMessage(phone, text, 'outgoing')
           const ts = new Date().toISOString()
           io.emit('new_message', { phone, name, content: text, direction: 'outgoing', timestamp: ts })
