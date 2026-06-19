@@ -16,7 +16,7 @@ import { getAIResponse, detectIntent } from './ai.js'
 import { createEvent } from './calendar.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const logger = P({ level: 'silent' })
+const logger = P({ level: 'debug' })
 
 // Persists across reconnections — accumulates LID→@s.whatsapp.net mappings
 const lidToJid = new Map()
