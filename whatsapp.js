@@ -4,7 +4,6 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   USyncQuery,
   USyncUser,
-  generateWAMessage,
 } from '@whiskeysockets/baileys'
 import QRCode from 'qrcode'
 import P from 'pino'
@@ -16,7 +15,7 @@ import { getAIResponse, detectIntent } from './ai.js'
 import { createEvent } from './calendar.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const logger = P({ level: 'debug' })
+const logger = P({ level: 'silent' })
 
 // Persists across reconnections — accumulates LID→@s.whatsapp.net mappings
 const lidToJid = new Map()
@@ -203,25 +202,7 @@ export async function initWhatsApp(io) {
 
         const sendReply = async (text) => {
           if (!text) { console.error('[AI] Respuesta vacía — no se envía nada'); return }
-          if (jid.endsWith('@lid')) {
-            // Baileys bug: for @lid JIDs, relayMessage constructs <to jid="user@lid"> (no device ID).
-            // WhatsApp server requires explicit device ID for @lid routing. We use relayMessage
-            // with participant.jid = "user:0@lid" so stanza.to = "user:0@lid" (device 0).
-            const lidUser = jid.split('@')[0]
-            const device0Jid = `${lidUser}:0@lid`
-            const fullMsg = await generateWAMessage(jid, { text }, { userJid: sock.user?.id })
-            await sock.relayMessage(jid, fullMsg.message, {
-              messageId: fullMsg.key.id,
-              participant: { jid: device0Jid },
-            })
-          } else {
-            try {
-              const result = await sock.sendMessage(jid, { text })
-              console.log('[SEND] OK →', jid, 'msgId:', result?.key?.id, 'status:', result?.status)
-            } catch (sendErr) {
-              console.error('[SEND] ERROR →', jid, sendErr.message)
-            }
-          }
+          await sock.sendMessage(jid, { text })
           db.saveMessage(phone, text, 'outgoing')
           const ts = new Date().toISOString()
           io.emit('new_message', { phone, name, content: text, direction: 'outgoing', timestamp: ts })
