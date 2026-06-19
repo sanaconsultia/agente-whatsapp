@@ -84,10 +84,10 @@ export async function initWhatsApp(io) {
       const rawJid = msg.key.remoteJid
       if (rawJid?.endsWith('@g.us')) continue
 
-      console.log('[DBG] rawJid:', rawJid, '| participant:', msg.key.participant, '| verifiedName:', msg.verifiedBizName)
-
       const phone = rawJid.replace(/@(s\.whatsapp\.net|lid)$/, '')
-      const jid = `${phone}@s.whatsapp.net`
+      // Send to the original JID — Baileys resolves @lid natively; converting
+      // @lid to @s.whatsapp.net produces an invalid JID (LID ≠ phone number).
+      const jid = rawJid
       const content = extractText(msg)
       if (!content) continue
 
@@ -120,9 +120,7 @@ export async function initWhatsApp(io) {
 
         const sendReply = async (text) => {
           if (!text) { console.error('[AI] Respuesta vacía — no se envía nada'); return }
-          console.log('[AI] sock.sendMessage → jid:', jid, '| state:', state)
           await sock.sendMessage(jid, { text })
-          console.log('[AI] sock.sendMessage completado')
           db.saveMessage(phone, text, 'outgoing')
           const ts = new Date().toISOString()
           io.emit('new_message', { phone, name, content: text, direction: 'outgoing', timestamp: ts })
