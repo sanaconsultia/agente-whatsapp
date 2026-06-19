@@ -2,7 +2,6 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  makeInMemoryStore,
 } from '@whiskeysockets/baileys'
 import QRCode from 'qrcode'
 import P from 'pino'
@@ -15,8 +14,8 @@ import { createEvent } from './calendar.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const logger = P({ level: 'silent' })
 
-// Persists across reconnections — accumulates LID→phone contact mappings
-const store = makeInMemoryStore({ logger })
+// Persists across reconnections — accumulates LID→@s.whatsapp.net mappings
+const lidToJid = new Map()
 
 let sock = null
 let state = 'disconnected'
@@ -50,7 +49,17 @@ export async function initWhatsApp(io) {
     emitOwnEvents: true,
   })
 
-  store.bind(sock.ev)
+  sock.ev.on('contacts.upsert', contacts => {
+    for (const c of contacts) {
+      if (c.lid && c.id) lidToJid.set(c.lid, c.id)
+    }
+  })
+  sock.ev.on('contacts.update', updates => {
+    for (const u of updates) {
+      if (u.lid && u.id) lidToJid.set(u.lid, u.id)
+    }
+  })
+
   sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('connection.update', async (update) => {
@@ -89,17 +98,16 @@ export async function initWhatsApp(io) {
       const rawJid = msg.key.remoteJid
       if (rawJid?.endsWith('@g.us')) continue
 
-      // Resolve @lid to @s.whatsapp.net using the contact store.
-      // LIDs are opaque identifiers — sending directly to @lid is silently
-      // dropped by WhatsApp. The store populates the mapping on contacts sync.
+      // Resolve @lid to @s.whatsapp.net — LIDs are opaque identifiers, not
+      // phone numbers. The mapping is populated via contacts.upsert events.
       let jid = rawJid
       if (rawJid?.endsWith('@lid')) {
-        const contact = Object.values(store.contacts).find(c => c.lid === rawJid)
-        if (contact?.id) {
-          jid = contact.id
+        const resolved = lidToJid.get(rawJid)
+        if (resolved) {
+          jid = resolved
           console.log('[LID] Resuelto:', rawJid, '→', jid)
         } else {
-          console.log('[LID] Sin mapeo para', rawJid, '— contactos en store:', Object.keys(store.contacts).length)
+          console.log('[LID] Sin mapeo para', rawJid, '— entradas:', lidToJid.size)
         }
       }
 
