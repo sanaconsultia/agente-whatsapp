@@ -168,7 +168,12 @@ export async function initWhatsApp(io) {
 
         const sendReply = async (text) => {
           if (!text) { console.error('[AI] Respuesta vacía — no se envía nada'); return }
-          await sock.sendMessage(jid, { text })
+          console.log('[SEND] Intentando enviar a:', jid)
+          await Promise.race([
+            sock.sendMessage(jid, { text }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('sendMessage timeout 8s')), 8000)),
+          ])
+          console.log('[SEND] Completado:', jid)
           db.saveMessage(phone, text, 'outgoing')
           const ts = new Date().toISOString()
           io.emit('new_message', { phone, name, content: text, direction: 'outgoing', timestamp: ts })
