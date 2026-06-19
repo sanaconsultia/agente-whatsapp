@@ -2,6 +2,7 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
+  makeInMemoryStore,
 } from '@whiskeysockets/baileys'
 import QRCode from 'qrcode'
 import P from 'pino'
@@ -13,6 +14,9 @@ import { createEvent } from './calendar.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const logger = P({ level: 'silent' })
+
+// Persists across reconnections — accumulates LID→phone contact mappings
+const store = makeInMemoryStore({ logger })
 
 let sock = null
 let state = 'disconnected'
@@ -46,6 +50,7 @@ export async function initWhatsApp(io) {
     emitOwnEvents: true,
   })
 
+  store.bind(sock.ev)
   sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('connection.update', async (update) => {
@@ -84,10 +89,21 @@ export async function initWhatsApp(io) {
       const rawJid = msg.key.remoteJid
       if (rawJid?.endsWith('@g.us')) continue
 
-      const phone = rawJid.replace(/@(s\.whatsapp\.net|lid)$/, '')
-      // Send to the original JID — Baileys resolves @lid natively; converting
-      // @lid to @s.whatsapp.net produces an invalid JID (LID ≠ phone number).
-      const jid = rawJid
+      // Resolve @lid to @s.whatsapp.net using the contact store.
+      // LIDs are opaque identifiers — sending directly to @lid is silently
+      // dropped by WhatsApp. The store populates the mapping on contacts sync.
+      let jid = rawJid
+      if (rawJid?.endsWith('@lid')) {
+        const contact = Object.values(store.contacts).find(c => c.lid === rawJid)
+        if (contact?.id) {
+          jid = contact.id
+          console.log('[LID] Resuelto:', rawJid, '→', jid)
+        } else {
+          console.log('[LID] Sin mapeo para', rawJid, '— contactos en store:', Object.keys(store.contacts).length)
+        }
+      }
+
+      const phone = jid.replace(/@(s\.whatsapp\.net|lid)$/, '')
       const content = extractText(msg)
       if (!content) continue
 
