@@ -81,10 +81,11 @@ export async function initWhatsApp(io) {
     for (const msg of messages) {
       if (!msg.message) continue
 
-      const jid = msg.key.remoteJid
-      if (jid?.endsWith('@g.us')) continue
+      const rawJid = msg.key.remoteJid
+      if (rawJid?.endsWith('@g.us')) continue
 
-      const phone = jid.replace('@s.whatsapp.net', '')
+      const phone = rawJid.replace(/@(s\.whatsapp\.net|lid)$/, '')
+      const jid = `${phone}@s.whatsapp.net`
       const content = extractText(msg)
       if (!content) continue
 
