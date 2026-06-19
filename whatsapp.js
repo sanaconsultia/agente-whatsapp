@@ -89,6 +89,12 @@ export async function initWhatsApp(io) {
     }
   })
 
+  sock.ev.on('messages.update', updates => {
+    for (const { key, update } of updates) {
+      if (key.fromMe) console.log('[ACK]', key.remoteJid, 'status:', update.status)
+    }
+  })
+
   sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('connection.update', async (update) => {
@@ -170,7 +176,7 @@ export async function initWhatsApp(io) {
           if (!text) { console.error('[AI] Respuesta vacía — no se envía nada'); return }
           console.log('[SEND] Intentando enviar a:', jid)
           await Promise.race([
-            sock.sendMessage(jid, { text }),
+            sock.sendMessage(jid, { text }, { quoted: msg }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('sendMessage timeout 8s')), 8000)),
           ])
           console.log('[SEND] Completado:', jid)
