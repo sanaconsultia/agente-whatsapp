@@ -58,10 +58,8 @@ export async function getAIResponse(userMessage, history = []) {
   return content.trim()
 }
 
-export async function detectIntent(userMessage, history = []) {
+export async function detectIntent(userMessage) {
   const today = new Date().toISOString().split('T')[0]
-
-  // Pre-calculate next 7 days so the AI doesn't need to do date arithmetic
   const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
   const nextDays = []
   for (let i = 0; i <= 7; i++) {
@@ -71,14 +69,6 @@ export async function detectIntent(userMessage, history = []) {
   }
   const todayDay = dayNames[new Date().getDay()]
 
-  const conversationMessages = [
-    ...history.slice(-8).map(m => ({
-      role: m.direction === 'incoming' ? 'user' : 'assistant',
-      content: m.content,
-    })),
-    { role: 'user', content: userMessage },
-  ]
-
   const response = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
@@ -86,21 +76,26 @@ export async function detectIntent(userMessage, history = []) {
       messages: [
         {
           role: 'system',
-          content: `Analiza TODA la conversación y devuelve SOLO un objeto JSON con esta estructura, sin texto adicional:
+          content: `Analiza el mensaje y devuelve SOLO un objeto JSON, sin texto adicional:
 {
   "intent": "agendar" | "consulta" | "otro",
   "fecha": "YYYY-MM-DD o null",
   "hora": "HH:MM o null",
-  "nombre": "nombre del usuario o null",
-  "email": "email del usuario o null"
+  "nombre": "nombre completo o null",
+  "email": "email o null"
 }
-Hoy es ${todayDay} ${today}. Los próximos días son: ${nextDays.join(', ')}.
-Cuando el usuario mencione un día de la semana (ej: "el miércoles"), usa exactamente la fecha de esa lista.
-Si la intención es agendar, extrae fecha/hora/nombre/email de TODO el historial, no solo del último mensaje.
-Si un dato ya fue mencionado en mensajes anteriores de la conversación, inclúyelo aunque no esté en el último mensaje.
-Si el usuario quiere agendar una reunión, visita o llamada, intent="agendar".`
+
+Reglas:
+- intent="agendar" si el mensaje menciona querer una reunión, visita, cita, quedar, verse, videollamada, o da una fecha/hora para hacerlo.
+- intent="consulta" si pregunta sobre servicios, precios, qué hace la empresa, etc.
+- intent="otro" para saludos, respuestas de datos (nombre, email), o lo que no encaje.
+- Hoy es ${todayDay} ${today}. Próximos días: ${nextDays.join(', ')}.
+- Convierte días de la semana a fechas EXACTAS de esa lista. "mañana" = ${nextDays[1]?.split(' ')[1]}.
+- hora: convierte "13h", "13 horas", "1pm", "13:00" → "13:00". Si dice "a las X" extrae X.
+- nombre: si el mensaje contiene un nombre propio (mayúscula, no es email, no es empresa), extráelo. Ejemplo: "Joan garcia joan@email.com" → nombre="Joan garcia", email="joan@email.com".
+- email: extrae cualquier dirección de email del mensaje.`
         },
-        ...conversationMessages,
+        { role: 'user', content: userMessage },
       ],
       max_tokens: 150,
       temperature: 0,

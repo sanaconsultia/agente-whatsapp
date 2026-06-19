@@ -20,6 +20,9 @@ const logger = P({ level: 'silent' })
 // Persists across reconnections — accumulates LID→@s.whatsapp.net mappings
 const lidToJid = new Map()
 
+// Accumulated booking fields per phone — persists across turns within a session
+const bookingCtx = new Map() // phone → { fecha, hora, nombre, email }
+
 // Baileys bug workaround: for @lid JIDs, sessions are stored as
 // session-{user}.0.json but looked up as session-{user}.json (no device suffix).
 // We create a symlink so the lookup finds the existing device-0 session.
@@ -197,7 +200,7 @@ export async function initWhatsApp(io) {
       if (mode !== 'ai') continue
 
       try {
-        const intent = await detectIntent(content, history)
+        const intent = await detectIntent(content)
         console.log('INTENT:', JSON.stringify(intent))
 
         const sendReply = async (text) => {
@@ -209,28 +212,45 @@ export async function initWhatsApp(io) {
           io.emit('conversation_updated', { phone, name, last_message: text, last_message_at: ts })
         }
 
-        if (intent.intent === 'agendar') {
+        // Get or init accumulated booking state for this phone
+        const ctx = bookingCtx.get(phone) || {}
+        const inBookingFlow = intent.intent === 'agendar' || !!(ctx.fecha || ctx.hora || ctx.nombre || ctx.email)
+
+        if (inBookingFlow) {
+          // Merge any newly extracted fields into accumulated context
+          if (intent.fecha)  ctx.fecha  = intent.fecha
+          if (intent.hora)   ctx.hora   = intent.hora
+          if (intent.nombre) ctx.nombre = intent.nombre
+          if (intent.email)  ctx.email  = intent.email
+          bookingCtx.set(phone, ctx)
+
           const missing = []
-          if (!intent.fecha) missing.push('la fecha')
-          if (!intent.hora) missing.push('la hora')
-          if (!intent.nombre) missing.push('tu nombre')
-          if (!intent.email) missing.push('tu email')
+          if (!ctx.fecha)  missing.push('la fecha')
+          if (!ctx.hora)   missing.push('la hora')
+          if (!ctx.nombre) missing.push('tu nombre')
+          if (!ctx.email)  missing.push('tu email')
 
           if (missing.length > 0) {
             const reply = await getAIResponse(
-              `El usuario quiere agendar pero faltan estos datos: ${missing.join(', ')}. Pídelos de forma natural y amable.`,
+              `El usuario quiere agendar una visita. Ya tenemos: ${[
+                ctx.fecha  ? `fecha ${ctx.fecha}`   : null,
+                ctx.hora   ? `hora ${ctx.hora}`     : null,
+                ctx.nombre ? `nombre ${ctx.nombre}` : null,
+                ctx.email  ? `email ${ctx.email}`   : null,
+              ].filter(Boolean).join(', ') || 'nada aún'}. Faltan: ${missing.join(', ')}. Pide solo los datos que faltan, de forma natural y concisa.`,
               history
             )
             await sendReply(reply)
           } else {
             await createEvent(
-              `Reunión con ${intent.nombre}`,
-              intent.fecha,
-              intent.hora,
-              intent.email
+              `Reunión con ${ctx.nombre}`,
+              ctx.fecha,
+              ctx.hora,
+              ctx.email
             )
+            bookingCtx.delete(phone)
             const reply = await getAIResponse(
-              `Confirma al usuario que su cita ha sido agendada para el ${intent.fecha} a las ${intent.hora}. Sé breve y amable.`,
+              `Confirma al usuario que su visita ha sido agendada para el ${ctx.fecha} a las ${ctx.hora}. Dile que recibirá un email de confirmación en ${ctx.email}. Sé breve y amable.`,
               history
             )
             await sendReply(reply)
