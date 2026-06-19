@@ -2,6 +2,8 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
+  USyncQuery,
+  USyncUser,
 } from '@whiskeysockets/baileys'
 import QRCode from 'qrcode'
 import P from 'pino'
@@ -16,6 +18,29 @@ const logger = P({ level: 'silent' })
 
 // Persists across reconnections — accumulates LID→@s.whatsapp.net mappings
 const lidToJid = new Map()
+
+async function resolveLidToJid(rawJid) {
+  if (lidToJid.has(rawJid)) return lidToJid.get(rawJid)
+  try {
+    if (typeof sock?.executeUSyncQuery !== 'function') return rawJid
+    const query = new USyncQuery()
+      .withContext('interactive')
+      .withMode('query')
+      .withLIDProtocol()
+      .withUser(new USyncUser().withLid(rawJid))
+    const result = await sock.executeUSyncQuery(query)
+    const resolved = result?.list?.[0]?.id
+    if (resolved && !resolved.endsWith('@lid')) {
+      console.log('[LID] Resuelto via USync:', rawJid, '→', resolved)
+      lidToJid.set(rawJid, resolved)
+      return resolved
+    }
+  } catch (e) {
+    console.error('[LID] Error USync:', e.message)
+  }
+  console.log('[LID] No resuelto:', rawJid)
+  return rawJid
+}
 
 let sock = null
 let state = 'disconnected'
@@ -98,17 +123,12 @@ export async function initWhatsApp(io) {
       const rawJid = msg.key.remoteJid
       if (rawJid?.endsWith('@g.us')) continue
 
-      // Resolve @lid to @s.whatsapp.net — LIDs are opaque identifiers, not
-      // phone numbers. The mapping is populated via contacts.upsert events.
+      // Resolve @lid to @s.whatsapp.net via active USync server query.
+      // LIDs are opaque — passive contacts.upsert only covers address-book
+      // contacts, so we resolve on demand and cache the result.
       let jid = rawJid
       if (rawJid?.endsWith('@lid')) {
-        const resolved = lidToJid.get(rawJid)
-        if (resolved) {
-          jid = resolved
-          console.log('[LID] Resuelto:', rawJid, '→', jid)
-        } else {
-          console.log('[LID] Sin mapeo para', rawJid, '— entradas:', lidToJid.size)
-        }
+        jid = await resolveLidToJid(rawJid)
       }
 
       const phone = jid.replace(/@(s\.whatsapp\.net|lid)$/, '')
