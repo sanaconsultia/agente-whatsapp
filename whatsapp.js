@@ -144,7 +144,7 @@ export async function initWhatsApp(io) {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const loggedOut = statusCode === DisconnectReason.loggedOut
       console.log(`Conexión cerrada (${statusCode}), reconectando: ${!loggedOut}`)
-      if (!loggedOut) setTimeout(() => initWhatsApp(io), 4_000)
+      if (!loggedOut) setTimeout(() => initWhatsApp(io), 1_500)
     }
   })
 
