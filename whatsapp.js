@@ -215,7 +215,12 @@ export async function initWhatsApp(io) {
               participant: { jid: device0Jid },
             })
           } else {
-            await sock.sendMessage(jid, { text })
+            try {
+              const result = await sock.sendMessage(jid, { text })
+              console.log('[SEND] OK →', jid, 'msgId:', result?.key?.id, 'status:', result?.status)
+            } catch (sendErr) {
+              console.error('[SEND] ERROR →', jid, sendErr.message)
+            }
           }
           db.saveMessage(phone, text, 'outgoing')
           const ts = new Date().toISOString()
@@ -268,7 +273,8 @@ export async function initWhatsApp(io) {
 export async function sendMessage(phone, text) {
   if (!sock || state !== 'open') throw new Error('WhatsApp no conectado')
   const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`
-  await sock.sendMessage(jid, { text })
+  const result = await sock.sendMessage(jid, { text })
+  console.log('[SEND-API] OK →', jid, 'msgId:', result?.key?.id, 'status:', result?.status)
 }
 
 function extractText(msg) {
