@@ -217,30 +217,23 @@ export async function initWhatsApp(io) {
         const inBookingFlow = intent.intent === 'agendar' || !!(ctx.fecha || ctx.hora || ctx.nombre || ctx.email)
 
         if (inBookingFlow) {
-          // Merge any newly extracted fields into accumulated context
+          // Merge any newly extracted fields — normalize hora to HH:MM
           if (intent.fecha)  ctx.fecha  = intent.fecha
-          if (intent.hora)   ctx.hora   = intent.hora
+          if (intent.hora)   ctx.hora   = normalizeHora(intent.hora)
           if (intent.nombre) ctx.nombre = intent.nombre
           if (intent.email)  ctx.email  = intent.email
           bookingCtx.set(phone, ctx)
 
           const missing = []
-          if (!ctx.fecha)  missing.push('la fecha')
-          if (!ctx.hora)   missing.push('la hora')
-          if (!ctx.nombre) missing.push('tu nombre')
-          if (!ctx.email)  missing.push('tu email')
+          if (!ctx.fecha)  missing.push('fecha')
+          if (!ctx.hora)   missing.push('hora')
+          if (!ctx.nombre) missing.push('nombre')
+          if (!ctx.email)  missing.push('email')
 
           if (missing.length > 0) {
-            const reply = await getAIResponse(
-              `El usuario quiere agendar una visita. Ya tenemos: ${[
-                ctx.fecha  ? `fecha ${ctx.fecha}`   : null,
-                ctx.hora   ? `hora ${ctx.hora}`     : null,
-                ctx.nombre ? `nombre ${ctx.nombre}` : null,
-                ctx.email  ? `email ${ctx.email}`   : null,
-              ].filter(Boolean).join(', ') || 'nada aún'}. Faltan: ${missing.join(', ')}. Pide solo los datos que faltan, de forma natural y concisa.`,
-              history
-            )
-            await sendReply(reply)
+            const labels = { fecha: 'la fecha', hora: 'la hora', nombre: 'tu nombre', email: 'tu email' }
+            const missingStr = missing.map(k => labels[k]).join(' y ')
+            await sendReply(`Para agendar la visita necesito ${missingStr}.`)
           } else {
             await createEvent(
               `Reunión con ${ctx.nombre}`,
@@ -249,11 +242,7 @@ export async function initWhatsApp(io) {
               ctx.email
             )
             bookingCtx.delete(phone)
-            const reply = await getAIResponse(
-              `Confirma al usuario que su visita ha sido agendada para el ${ctx.fecha} a las ${ctx.hora}. Dile que recibirá un email de confirmación en ${ctx.email}. Sé breve y amable.`,
-              history
-            )
-            await sendReply(reply)
+            await sendReply(`✅ Visita confirmada para el ${ctx.fecha} a las ${ctx.hora}h. Te llega confirmación a ${ctx.email}.`)
           }
         } else {
           console.log(`[AI] Generando respuesta para ${phone}:`, content.slice(0, 60))
@@ -276,6 +265,16 @@ export async function sendMessage(phone, text) {
   const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`
   const result = await sock.sendMessage(jid, { text })
   console.log('[SEND-API] OK →', jid, 'msgId:', result?.key?.id, 'status:', result?.status)
+}
+
+function normalizeHora(raw) {
+  if (!raw) return null
+  const m = String(raw).match(/(\d{1,2})(?:[:\s](\d{2}))?/)
+  if (!m) return null
+  const h = parseInt(m[1], 10)
+  const min = m[2] ? parseInt(m[2], 10) : 0
+  if (h < 0 || h > 23) return null
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
 }
 
 function extractText(msg) {
