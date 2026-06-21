@@ -13,6 +13,7 @@ import { access, symlink, lstat } from 'fs/promises'
 import * as db from './database.js'
 import { getAIResponse, detectIntent } from './ai.js'
 import { createEvent } from './calendar.js'
+import { sendDisconnectAlert } from './notify.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const logger = P({ level: 'silent' })
@@ -147,6 +148,8 @@ export async function initWhatsApp(io) {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const loggedOut = statusCode === DisconnectReason.loggedOut
       console.log(`Conexión cerrada (${statusCode}), reconectando: ${!loggedOut}`)
+      const dashboardUrl = process.env.DASHBOARD_URL || 'http://91.99.24.207:3000'
+      sendDisconnectAlert(statusCode, dashboardUrl)
       if (!loggedOut) setTimeout(() => initWhatsApp(io), 1_500)
     }
   })
