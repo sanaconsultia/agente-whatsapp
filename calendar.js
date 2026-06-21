@@ -1,28 +1,33 @@
-import { google } from 'googleapis'
+import axios from 'axios'
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  'http://localhost'
-)
-
-oauth2Client.setCredentials({
-  refresh_token: process.env.GOOGLE_REFRESH_TOKEN
-})
-
-const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
+async function getAccessToken() {
+  const res = await axios.post(
+    'https://oauth2.googleapis.com/token',
+    new URLSearchParams({
+      client_id:     process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      grant_type:    'refresh_token',
+    }),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  )
+  return res.data.access_token
+}
 
 export async function getAvailableSlots(date) {
   const startOfDay = new Date(`${date}T09:00:00+02:00`)
-  const endOfDay = new Date(`${date}T18:00:00+02:00`)
+  const endOfDay   = new Date(`${date}T18:00:00+02:00`)
 
-  const res = await calendar.freebusy.query({
-    requestBody: {
+  const token = await getAccessToken()
+  const res = await axios.post(
+    'https://www.googleapis.com/calendar/v3/freeBusy',
+    {
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
-      items: [{ id: process.env.GOOGLE_CALENDAR_ID }]
-    }
-  })
+      items:   [{ id: process.env.GOOGLE_CALENDAR_ID }],
+    },
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
 
   const busy = res.data.calendars[process.env.GOOGLE_CALENDAR_ID].busy
   const slots = []
@@ -33,9 +38,7 @@ export async function getAvailableSlots(date) {
     const isBusy = busy.some(b =>
       new Date(b.start) < slotEnd && new Date(b.end) > current
     )
-    if (!isBusy) {
-      slots.push(`${current.getHours()}:00`)
-    }
+    if (!isBusy) slots.push(`${current.getHours()}:00`)
     current = slotEnd
   }
 
@@ -44,18 +47,22 @@ export async function getAvailableSlots(date) {
 
 export async function createEvent(summary, date, hour, attendeeEmail) {
   const [h, m] = hour.split(':').map(Number)
-const start = new Date(`${date}T00:00:00Z`)
-start.setUTCHours(h - 2, m, 0, 0)
+  const start = new Date(`${date}T00:00:00Z`)
+  start.setUTCHours(h - 2, m, 0, 0)
   const end = new Date(start.getTime() + 60 * 60 * 1000)
 
-  await calendar.events.insert({
-    calendarId: process.env.GOOGLE_CALENDAR_ID,
-    sendUpdates: 'all',
-    requestBody: {
+  const token = await getAccessToken()
+  await axios.post(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(process.env.GOOGLE_CALENDAR_ID)}/events`,
+    {
       summary,
-      start: { dateTime: start.toISOString() },
-      end: { dateTime: end.toISOString() },
+      start:     { dateTime: start.toISOString() },
+      end:       { dateTime: end.toISOString() },
       attendees: attendeeEmail ? [{ email: attendeeEmail }] : [],
     },
-  })
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      params:  { sendUpdates: 'all' },
+    }
+  )
 }
