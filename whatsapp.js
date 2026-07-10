@@ -143,7 +143,10 @@ export async function initWhatsApp(io) {
       state = 'open'
       io.emit('whatsapp_connected')
       console.log('✓ WhatsApp conectado')
-    }
+    if (disconnectAlertTimer) {
+        clearTimeout(disconnectAlertTimer)
+        disconnectAlertTimer = null
+      }}
 
     if (connection === 'close') {
       state = 'disconnected'
