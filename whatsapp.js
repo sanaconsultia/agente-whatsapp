@@ -77,7 +77,10 @@ async function resolveLidToJid(rawJid) {
 let sock = null
 let state = 'disconnected'
 let latestQR = null
-
+let sock = null
+let state = 'disconnected'
+let latestQR = null
+let disconnectAlertTimer = null   // ← NUEVO
 export function getConnectionState() {
   return { state, qr: latestQR }
 }
