@@ -151,11 +151,19 @@ export async function initWhatsApp(io) {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const loggedOut = statusCode === DisconnectReason.loggedOut
       console.log(`Conexión cerrada (${statusCode}), reconectando: ${!loggedOut}`)
+
+      // Solo avisar por email si sigue desconectado pasados 2 minutos
+      if (disconnectAlertTimer) clearTimeout(disconnectAlertTimer)
       const dashboardUrl = process.env.DASHBOARD_URL || 'http://91.99.24.207:3000'
-      sendDisconnectAlert(statusCode, dashboardUrl)
+      disconnectAlertTimer = setTimeout(() => {
+        if (state === 'disconnected') {
+          sendDisconnectAlert(statusCode, dashboardUrl)
+        }
+        disconnectAlertTimer = null
+      }, 2 * 60 * 1000)
+
       if (!loggedOut) setTimeout(() => initWhatsApp(io), 1_500)
-    }
-  })
+    }})
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
