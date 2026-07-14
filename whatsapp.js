@@ -1,4 +1,4 @@
-import makeWASocket, {
+// rebuild trigger import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
@@ -312,3 +312,4 @@ function extractText(msg) {
 return null
 }
 fix: eliminar declaración duplicada de sock
+chore: forzar rebuild
